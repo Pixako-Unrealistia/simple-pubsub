@@ -4,6 +4,8 @@
 
 //}
 
+const LOW_STOCK_THRESHOLD = 3;
+
 enum LogLevel {
 	INFO = 'INFO',
 	WARN = 'WARN',
@@ -112,41 +114,65 @@ class MachineRefillEvent implements IEvent {
 	}
 }
 
-class MachineSaleSubscriber implements ISubscriber {
-	public machines: Machine[];
+class LowStockWarningEvent implements IEvent {
+	constructor(private readonly _machineId: string) {}
+	type(): string { return 'lowStockWarning'; }
+	machineId(): string { return this._machineId; }
+}
 
-	constructor (machines: Machine[]) {
-		this.machines = machines; 
-	}
+class StockLevelOkEvent implements IEvent {
+	constructor(private readonly _machineId: string) {}
+	type(): string { return 'stockLevelOk'; }
+	machineId(): string { return this._machineId; }
+}
+
+class MachineSaleSubscriber implements ISubscriber {
+	constructor(
+		public machines: Machine[],
+		private pubSub: IPublishSubscribeService
+	) {}
 
 	handle(event: MachineSaleEvent): void {
-		this.machines[2].stockLevel -= event.getSoldQuantity();
+		const machine = this.machines.find(m => m.id === event.machineId());
+		if (machine) {
+		machine.updateStock(-event.getSoldQuantity(), this.pubSub);
+		}
 	}
 }
-
+  
 class MachineRefillSubscriber implements ISubscriber {
-	//handle(event: IEvent): void {
-	//	throw new Error("Method not implemented.");
-	//}
+	constructor(
+		public machines: Machine[],
+		private pubSub: IPublishSubscribeService
+	) {}
 
-	public machines: Machine[];
-	constructor (machines: Machine[]) {
-		this.machines = machines;
-	}
-	
 	handle(event: MachineRefillEvent): void {
-		this.machines[2].stockLevel += event.refillQuantity();
+		const machine = this.machines.find(m => m.id === event.machineId());
+		if (machine) {
+		machine.updateStock(event.refillQuantity(), this.pubSub);
+		}
 	}
 }
-
 
 // objects
 class Machine {
 	public stockLevel = 10;
 	public id: string;
+	private inLowStockState = false; // new
 
-	constructor (id: string) {
-		this.id = id;
+	constructor(id: string) {
+	this.id = id;
+	}
+
+	updateStock(delta: number, pubSub: IPublishSubscribeService) {
+		this.stockLevel += delta;
+		if (!this.inLowStockState && this.stockLevel < LOW_STOCK_THRESHOLD) {
+			this.inLowStockState = true;
+			pubSub.publish(new LowStockWarningEvent(this.id));
+		} else if (this.inLowStockState && this.stockLevel >= LOW_STOCK_THRESHOLD) {
+			this.inLowStockState = false;
+			pubSub.publish(new StockLevelOkEvent(this.id));
+		}
 	}
 }
 
@@ -179,12 +205,11 @@ const eventGenerator = (): IEvent => {
 	const machines: Machine[] = [ new Machine('001'), new Machine('002'), new Machine('003') ];
 
 	// create a machine sale event subscriber. inject the machines (all subscribers should do this)
-	const saleSubscriber = new MachineSaleSubscriber(machines);
-
-	// create the PubSub service
-	const pubSubService = new PublishSubscribeService();
-	const refillSubscriber = new MachineRefillSubscriber(machines);
 	
+	const pubSubService = new PublishSubscribeService();
+	const saleSubscriber = new MachineSaleSubscriber(machines, pubSubService);
+	const refillSubscriber = new MachineRefillSubscriber(machines, pubSubService);
+
 	console.log(machines);
 	pubSubService.subscribe('sale', saleSubscriber);
 	pubSubService.subscribe('refill', refillSubscriber);
@@ -197,10 +222,21 @@ const eventGenerator = (): IEvent => {
 	events.forEach(event => pubSubService.publish(event));
 	console.log(machines);
 
+	// test for warning event
+	//const stubMachine = new Machine('00x');
+	machines[0] = new Machine('00x');
+	
+	const stubEvent = new MachineSaleEvent(4, '00x');
+	const stubEvent2 = new MachineRefillEvent(4, '00x');
+	saleSubscriber.handle(stubEvent);
+	saleSubscriber.handle(stubEvent);
+	console.log(machines.find(m => m.id === '00x'));
+	refillSubscriber.handle(stubEvent2);
+	console.log(machines.find(m => m.id === '00x'));
 
-	pubSubService.unsubscribe('sale', saleSubscriber);
-	pubSubService.unsubscribe('refill', refillSubscriber);
-	events.forEach(event => pubSubService.publish(event));
+	//pubSubService.unsubscribe('sale', saleSubscriber);
+	//pubSubService.unsubscribe('refill', refillSubscriber);
+	//events.forEach(event => pubSubService.publish(event));
 
 	//console.log(machines);
 })();
