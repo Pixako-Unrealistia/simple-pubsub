@@ -1,3 +1,9 @@
+//const config = {
+//	maxStock: 10, //TBD
+//	lowStockWarning: 3,
+
+//}
+
 enum LogLevel {
 	INFO = 'INFO',
 	WARN = 'WARN',
@@ -74,7 +80,6 @@ class PublishSubscribeService implements IPublishSubscribeService {
 	}
 }  
 
-// implementations
 class MachineSaleEvent implements IEvent {
 	constructor(private readonly _sold: number, private readonly _machineId: string) {}
 
@@ -98,6 +103,10 @@ class MachineRefillEvent implements IEvent {
 		return this._machineId;
 	}
 
+	refillQuantity(): number {
+		return this._refill;
+	}
+
 	type(): string {
 		return 'refill';
 	}
@@ -116,8 +125,17 @@ class MachineSaleSubscriber implements ISubscriber {
 }
 
 class MachineRefillSubscriber implements ISubscriber {
-	handle(event: IEvent): void {
-		throw new Error("Method not implemented.");
+	//handle(event: IEvent): void {
+	//	throw new Error("Method not implemented.");
+	//}
+
+	public machines: Machine[];
+	constructor (machines: Machine[]) {
+		this.machines = machines;
+	}
+	
+	handle(event: MachineRefillEvent): void {
+		this.machines[2].stockLevel += event.refillQuantity();
 	}
 }
 
@@ -165,9 +183,11 @@ const eventGenerator = (): IEvent => {
 
 	// create the PubSub service
 	const pubSubService = new PublishSubscribeService();
+	const refillSubscriber = new MachineRefillSubscriber(machines);
 	
 	console.log(machines);
 	pubSubService.subscribe('sale', saleSubscriber);
+	pubSubService.subscribe('refill', refillSubscriber);
 
 	// create 5 random events
 	const events = [1,2,3,4,5].map(i => eventGenerator());
@@ -175,12 +195,11 @@ const eventGenerator = (): IEvent => {
 	// publish the events
 	//events.map(pubSubService.publish);
 	events.forEach(event => pubSubService.publish(event));
-	
-	
 	console.log(machines);
-	pubSubService.unsubscribe('sale', saleSubscriber);
-	
 
+
+	pubSubService.unsubscribe('sale', saleSubscriber);
+	pubSubService.unsubscribe('refill', refillSubscriber);
 	events.forEach(event => pubSubService.publish(event));
 
 	//console.log(machines);
