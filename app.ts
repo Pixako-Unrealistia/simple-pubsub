@@ -1,3 +1,27 @@
+enum LogLevel {
+	INFO = 'INFO',
+	WARN = 'WARN',
+	ERROR = 'ERROR'
+}
+
+class Logger {
+	static log(level: LogLevel, message: string): void {
+	console.log(`[${level}] ${message}`);
+	}
+
+	static info(message: string): void {
+	this.log(LogLevel.INFO, message);
+	}
+
+	static warn(message: string): void {
+	this.log(LogLevel.WARN, message);
+	}
+
+	static error(message: string): void {
+	this.log(LogLevel.ERROR, message);
+	}
+}
+
 // interfaces
 interface IEvent {
 	type(): string;
@@ -14,6 +38,35 @@ interface IPublishSubscribeService {
 	// unsubscribe ( /* Question 2 - build this feature */ );
 }
 
+class PublishSubscribeService implements IPublishSubscribeService {
+	private readonly _subscribers: { [key: string]: ISubscriber[] };
+
+	constructor() {
+	this._subscribers = {};
+	}
+
+	publish(event: IEvent): void {
+	Logger.info(`Publishing event: ${event.type()}, ${event.machineId()}`);
+	const subscribers = this._subscribers[event.type()];
+	if (subscribers) {
+		subscribers.forEach(subscriber => {
+		Logger.info('Notifying subscriber...');
+		subscriber.handle(event);
+		});
+	}
+	}
+
+	subscribe(type: string, handler: ISubscriber): void {
+	Logger.info(`Subscribing a handler for: ${type}`);
+	const subscribers = this._subscribers[type];
+	if (subscribers) {
+		subscribers.push(handler);
+	} else {
+		this._subscribers[type] = [handler];
+	}
+	}
+	// unsubscribe;
+}  
 
 // implementations
 class MachineSaleEvent implements IEvent {
@@ -36,11 +89,11 @@ class MachineRefillEvent implements IEvent {
 	constructor(private readonly _refill: number, private readonly _machineId: string) {}
 
 	machineId(): string {
-		throw new Error("Method not implemented.");
+		return this._machineId;
 	}
 
 	type(): string {
-		throw new Error("Method not implemented.");
+		return 'refill';
 	}
 }
 
@@ -105,11 +158,17 @@ const eventGenerator = (): IEvent => {
 	const saleSubscriber = new MachineSaleSubscriber(machines);
 
 	// create the PubSub service
-	const pubSubService: IPublishSubscribeService = null as unknown as IPublishSubscribeService; // implement and fix this
+	const pubSubService = new PublishSubscribeService();
+	
+	console.log(machines);
+	pubSubService.subscribe('sale', saleSubscriber);
 
 	// create 5 random events
 	const events = [1,2,3,4,5].map(i => eventGenerator());
 
 	// publish the events
-	events.map(pubSubService.publish);
+	//events.map(pubSubService.publish);
+	events.forEach(event => pubSubService.publish(event));
+	
+	//console.log(machines);
 })();
