@@ -35,7 +35,7 @@ interface ISubscriber {
 interface IPublishSubscribeService {
 	publish (event: IEvent): void;
 	subscribe (type: string, handler: ISubscriber): void;
-	// unsubscribe ( /* Question 2 - build this feature */ );
+	unsubscribe (type: string, handler: ISubscriber): void;
 }
 
 class PublishSubscribeService implements IPublishSubscribeService {
@@ -57,15 +57,21 @@ class PublishSubscribeService implements IPublishSubscribeService {
 	}
 
 	subscribe(type: string, handler: ISubscriber): void {
-	Logger.info(`Subscribing a handler for: ${type}`);
-	const subscribers = this._subscribers[type];
-	if (subscribers) {
-		subscribers.push(handler);
-	} else {
-		this._subscribers[type] = [handler];
+		Logger.info(`Subscribing a handler for: ${type}`);
+		const subscribers = this._subscribers[type];
+		if (subscribers) {
+			subscribers.push(handler);
+		} else {
+			this._subscribers[type] = [handler];
+		}
 	}
+	
+	unsubscribe(type: string, handler: ISubscriber): void {
+		const subscribers = this._subscribers[type];
+		if (subscribers) {
+			this._subscribers[type] = subscribers.filter(subscriber => subscriber !== handler);
+		}
 	}
-	// unsubscribe;
 }  
 
 // implementations
@@ -170,5 +176,12 @@ const eventGenerator = (): IEvent => {
 	//events.map(pubSubService.publish);
 	events.forEach(event => pubSubService.publish(event));
 	
+	
+	console.log(machines);
+	pubSubService.unsubscribe('sale', saleSubscriber);
+	
+
+	events.forEach(event => pubSubService.publish(event));
+
 	//console.log(machines);
 })();
