@@ -154,7 +154,7 @@ export class Machine {
 				this.stockLevel = 0;
 			}
 		}
-		this.stockLevel += delta;
+
 		if (!this.inLowStockState && this.stockLevel < LOW_STOCK_THRESHOLD) {
 			this.inLowStockState = true;
 			pubSub.publish(new LowStockWarningEvent(this.id));
